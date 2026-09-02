@@ -11,10 +11,25 @@ import { defaultNodes, defaultEdges, defaultSLA } from '../data/mockNetworkData'
 import { findRnsrRoutes, getHighlightedElements } from '../utils/rnsrAlgorithm';
 import { Sliders, Zap, ShieldCheck, AlertCircle, CheckCircle2, Play, TestTube2, ArrowRight, Layers, Clock } from 'lucide-react';
 
+// Deterministic Relay Minimization Trade-off Scenario Topology
+const tradeoffNodes = [
+  { id: 'A1', type: 'networkNode', data: { label: 'Access A1', nodeType: 'access' }, position: { x: 50, y: 150 } },
+  { id: 'R1', type: 'networkNode', data: { label: 'Relay R1', nodeType: 'relay' }, position: { x: 250, y: 80 } },
+  { id: 'R2', type: 'networkNode', data: { label: 'Relay R2', nodeType: 'relay' }, position: { x: 450, y: 80 } },
+  { id: 'A3', type: 'networkNode', data: { label: 'Access A3', nodeType: 'access' }, position: { x: 650, y: 150 } }
+];
+
+const tradeoffEdges = [
+  { id: 'e-a1-r1', source: 'A1', target: 'R1', label: '10 ms', data: { latency: 10 }, style: { stroke: '#38bdf8', strokeWidth: 2 } },
+  { id: 'e-r1-a3', source: 'R1', target: 'A3', label: '40 ms', data: { latency: 40 }, style: { stroke: '#38bdf8', strokeWidth: 2 } },
+  { id: 'e-r1-r2', source: 'R1', target: 'R2', label: '15 ms', data: { latency: 15 }, style: { stroke: '#a855f7', strokeWidth: 2 } },
+  { id: 'e-r2-a3', source: 'R2', target: 'A3', label: '15 ms', data: { latency: 15 }, style: { stroke: '#a855f7', strokeWidth: 2 } }
+];
+
 export default function Optimization() {
   // Network Graph State
-  const [nodes] = useNodesState(defaultNodes);
-  const [edges] = useEdgesState(defaultEdges);
+  const [nodes, setNodes] = useNodesState(defaultNodes);
+  const [edges, setEdges] = useEdgesState(defaultEdges);
 
   // Configuration Form State
   const [sourceId, setSourceId] = useState('A1');
@@ -39,31 +54,42 @@ export default function Optimization() {
 
   // Run RNSR Optimization Action
   const handleRunOptimization = useCallback(
-    (overrideSource, overrideDest, overrideSla) => {
+    (overrideSource, overrideDest, overrideSla, customNodes = nodes, customEdges = edges) => {
       const src = overrideSource !== undefined ? overrideSource : sourceId;
       const dst = overrideDest !== undefined ? overrideDest : destinationId;
       const sla = overrideSla !== undefined ? overrideSla : slaLimit;
 
       const result = findRnsrRoutes({
-        nodes,
-        edges,
+        nodes: customNodes,
+        edges: customEdges,
         sourceId: src,
         destinationId: dst,
         slaLimit: sla,
       });
 
       setOptimizationResult(result);
-      setSelectedRouteId(null); // Reset manually selected path to display RNSR optimal
+      setSelectedRouteId(null);
     },
     [nodes, edges, sourceId, destinationId, slaLimit]
   );
 
   // Preset Test Case Handlers
   const runTestCase = (src, dst, sla) => {
+    setNodes(defaultNodes);
+    setEdges(defaultEdges);
     setSourceId(src);
     setDestinationId(dst);
     setSlaLimit(sla);
-    handleRunOptimization(src, dst, sla);
+    handleRunOptimization(src, dst, sla, defaultNodes, defaultEdges);
+  };
+
+  const runTradeoffTestCase = () => {
+    setNodes(tradeoffNodes);
+    setEdges(tradeoffEdges);
+    setSourceId('A1');
+    setDestinationId('A3');
+    setSlaLimit(60);
+    handleRunOptimization('A1', 'A3', 60, tradeoffNodes, tradeoffEdges);
   };
 
   // Determine active route for visualization highlight
@@ -126,6 +152,13 @@ export default function Optimization() {
           >
             <span className="w-2 h-2 rounded-full bg-purple-400"></span>
             Test 4: Multi-Relay Path (A2 → A3, 50ms)
+          </button>
+          <button
+            onClick={runTradeoffTestCase}
+            className="px-3 py-1.5 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 text-xs font-semibold rounded-lg border border-cyan-700 transition-colors flex items-center gap-1.5 shadow-sm"
+          >
+            <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+            Test 5: Deterministic RNSR Objective Trade-off (50ms/1-relay vs 40ms/2-relays)
           </button>
         </div>
       </div>
